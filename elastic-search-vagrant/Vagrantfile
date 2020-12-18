@@ -1,0 +1,39 @@
+IMAGE_NAME = "envimation/ubuntu-xenial"
+
+Vagrant.configure("2") do |config|
+	config.vm.synced_folder "config/", "/config"
+	config.vm.provider "virtualbox" do |v|
+        v.memory = 2048
+        v.cpus = 2
+    end
+	config.vm.define "master" do |master|
+        master.vm.box = IMAGE_NAME
+        master.vm.network "private_network", ip: "192.168.50.10"
+        master.vm.hostname = "master"
+		master.vm.provision "shell", path: "config/bootstrap.sh"
+		master.vm.provision "ansible" do |ansible|
+			ansible.playbook = "config/playbook.yml"
+			ansible.extra_vars = {
+				node_ip: "192.168.50.10",
+				peer_node_ip: "192.168.50.11",
+				node_name: "master",
+				node_role: "master"
+			}
+        end
+    end
+	config.vm.define "data" do |data|
+        data.vm.box = IMAGE_NAME
+        data.vm.network "private_network", ip: "192.168.50.11"
+        data.vm.hostname = "data"
+		data.vm.provision "shell", path: "config/bootstrap.sh"
+		data.vm.provision "ansible" do |ansible|
+			ansible.playbook = "config/playbook.yml"
+			ansible.extra_vars = {
+				node_ip: "192.168.50.11",
+				peer_node_ip: "192.168.50.10",
+				node_name: "data",
+				node_role: "data"
+			}
+        end
+    end
+end

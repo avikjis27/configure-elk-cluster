@@ -1,0 +1,66 @@
+---
+- name: Plays to install required utility packages and elastic search binary for all nodes
+  hosts: all
+  become: true
+  gather_facts: yes
+  tasks:
+  - name: Install required utility packages
+    apt:
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+      - vim
+      - libdigest-sha-perl
+      - curl
+
+  - name: Validate the elasticsearch binary
+    command: "shasum -a 512 -c elasticsearch-7.10.0-amd64.deb.sha512"
+    args:
+      chdir: /config
+  
+  - name: Install elasticsearch
+    apt:
+      deb: /config/elasticsearch-7.10.0-amd64.deb
+
+- name: Configure elastic search master and data nodes
+  hosts: all
+  become: true
+  gather_facts: yes
+  tasks:
+  - name: Ensure the cluster name
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      line: 'cluster.name: test-cluster'
+
+  - name: Ensure the node name
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      line: "node.name: {{ node_name }}"
+
+  - name: Ensure the node role
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      line: "node.roles: [ {{ node_role}} ]"
+  
+  - name: Ensure the network binding to the IP instead of loopback
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      line: "network.host: {{ node_ip }}"
+
+  - name: Ensure the cluster node discovery
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      line: 'discovery.seed_hosts: {{ peer_node_ip }}'
+
+  - name: Initial master node at bootstrapping
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      line: 'cluster.initial_master_nodes: [ {{ node_ip }} ]' 
+    when: "'master' in inventory_hostname"     
+
+  - name: Restart the node
+    service:
+      name: elasticsearch
+      state: restarted
